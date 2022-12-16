@@ -110,7 +110,7 @@ func main() {
 }
 
 func testRequest(domain string) bool {
-	message := new(dns.Msg).SetQuestion(domain, dns.TypeA)
+	message := new(dns.Msg).SetQuestion(domain, dns.TypeNAPTR)
 	if iterative {
 		message.RecursionDesired = false
 	}
@@ -133,7 +133,7 @@ func linearResolver(threadID int, domain string, sentCounterCh chan<- statsMessa
 	maxRequestID := big.NewInt(65536)
 	errors := 0
 
-	message := new(dns.Msg).SetQuestion(domain, dns.TypeA)
+	message := new(dns.Msg).SetQuestion(domain, dns.TypeNAPTR)
 	if iterative {
 		message.RecursionDesired = false
 	}
