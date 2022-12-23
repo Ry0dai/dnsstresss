@@ -21,6 +21,7 @@ var (
 	verbose         bool
 	iterative       bool
 	resolver        string
+	queryType       string
 	randomIds       bool
 	flood           bool
 )
@@ -40,6 +41,7 @@ func init() {
 		"Resolver to test against")
 	flag.BoolVar(&flood, "f", false,
 		"Don't wait for an answer before sending another")
+	flag.StringVar(&queryType, "t", "typeA", "Query Type to test (typeA, typeNAPTR, typeSRV ...)")
 }
 
 func main() {
@@ -80,15 +82,17 @@ func main() {
 		}
 	}
 
+	dnsType := "type" + strings.ToUpper(queryType)
 	fmt.Printf("Testing resolver: %s.\n", aurora.Bold(resolver))
 	fmt.Printf("Target domains: %v.\n\n", targetDomains)
+	fmt.Printf("Query Type: %v. \n\n", dnsType)
 
 	hasErrors := false
 	for i := range targetDomains {
 		hasErrors = hasErrors || testRequest(targetDomains[i])
 	}
 	if hasErrors {
-		fmt.Printf("%s %s", aurora.BgBrown(" WARNING "), "Could not resolve some domains you provided, you may receive only errors.\n")
+		fmt.Printf("%s %s", aurora.BgBlack(" WARNING "), "Could not resolve some domains you provided, you may receive only errors.\n")
 	}
 
 	// Create a channel for communicating the number of sent messages
@@ -96,7 +100,7 @@ func main() {
 
 	// Run concurrently
 	for threadID := 0; threadID < concurrency; threadID++ {
-		go linearResolver(threadID, targetDomains[threadID%len(targetDomains)], sentCounterCh)
+		go linearResolver(threadID, targetDomains[threadID%len(targetDomains)], dnsType, sentCounterCh)
 	}
 	fmt.Print(aurora.Faint(fmt.Sprintf("Started %d threads.\n", concurrency)))
 
@@ -122,7 +126,7 @@ func testRequest(domain string) bool {
 	return false
 }
 
-func linearResolver(threadID int, domain string, sentCounterCh chan<- statsMessage) {
+func linearResolver(threadID int, domain string, record string, sentCounterCh chan<- statsMessage) {
 	// Resolve the domain as fast as possible
 	if verbose {
 		fmt.Printf("Starting thread #%d.\n", threadID)
@@ -133,7 +137,15 @@ func linearResolver(threadID int, domain string, sentCounterCh chan<- statsMessa
 	maxRequestID := big.NewInt(65536)
 	errors := 0
 
-	message := new(dns.Msg).SetQuestion(domain, dns.TypeNAPTR)
+	var message = new(dns.Msg)
+	if record == "typeNAPTR" {
+		message = new(dns.Msg).SetQuestion(domain, dns.TypeNAPTR)
+	} else if record == "typeSRV" {
+		message = new(dns.Msg).SetQuestion(domain, dns.TypeSRV)
+	} else {
+		message = new(dns.Msg).SetQuestion(domain, dns.TypeA)
+	}
+
 	if iterative {
 		message.RecursionDesired = false
 	}
